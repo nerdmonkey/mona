@@ -34,7 +34,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.)
  
-$Revision$
+$Revision: 156 $
+$Id: mona.py 156 2012-02-23 17:32:05Z corelanc0d3r $ 
 """
 
 __VERSION__ = '1.3-dev'
@@ -1610,8 +1611,27 @@ class MnPointer:
 					pagesize = page.getSize()
 					if self.address <= heap + pagesize:
 						inheap = True
-		return inheap	
+		return inheap
+	
+	def memLocation(self):
+		"""
+		Gets the memory location associated with a given pointer (modulename, stack, heap or empty
 		
+		Arguments:
+		None
+		
+		Return:
+		String
+		"""
+		memloc = self.belongsTo()
+		
+		if memloc == "" and self.isOnStack():
+				memloc = "Stack"
+		if memloc == "" and self.isInHeap():
+				memloc = "Heap"
+		if memloc == "":
+			memloc = "??"
+		return memloc
 		
 #---------------------------------------#
 #  Various functions                    #
@@ -4270,7 +4290,7 @@ def findPattern(modulecriteria,criteria,pattern,type,base,top,consecutive=False,
 	return allpointers
 		
 
-def compareFileWithMemory(filename,startpos):
+def compareFileWithMemory(filename,startpos,skipmodules=False):
 	imm.log("[+] Reading file %s..." % filename)
 	srcdata_normal=[]
 	srcdata_unicode=[]
@@ -4291,7 +4311,7 @@ def compareFileWithMemory(filename,startpos):
 		imm.log("Error while reading file %s" % filename, highlight=1)
 		return
 	# loop normal and unicode
-	comparetable=imm.createTable('mona Memory comparison results',['Address','Status','Type'])	
+	comparetable=imm.createTable('mona Memory comparison results',['Address','Status','Type','Location'])	
 	modes = ["normal", "unicode"]
 	objlogfile = MnLog("compare.txt")
 	logfile = objlogfile.reset()
@@ -4328,7 +4348,9 @@ def compareFileWithMemory(filename,startpos):
 
 			for type in results:
 				for ptr in results[type]:
-					locations.append(ptr)
+					ptrinfo = MnPointer(ptr).memLocation()
+					if not skipmodules or (skipmodules and (ptrinfo in ["Heap","Stack","??"])):
+						locations.append(ptr)
 		else:
 			startpos_fixed = hexStrToInt(startpos)
 			locations.append(startpos_fixed)
@@ -4623,10 +4645,11 @@ def memcompare(location, src, comparetable, sctype, smart=True, tablecols=16):
 		imm.log(msg, address=location, **kw)
 		objlogfile.write(msg, logfile)
 	def add_to_table(msg):
-		comparetable.add(0, ['0x%08x' % location, msg, sctype])
+		locinfo = MnPointer(location).memLocation()
+		comparetable.add(0, ['0x%08x' % location, msg, sctype, locinfo])
 
 	objlogfile.write("-" * 100,logfile)
-	log('[+] Comparing with memory at location : 0x%08x' % location, highlight=1)
+	log('[+] Comparing with memory at location : 0x%08x (%s)' % (location,MnPointer(location).memLocation()), highlight=1)
 	imm.updateLog()
 
 	mem = read_memory(imm, location, 2*len(src))
@@ -4639,7 +4662,7 @@ def memcompare(location, src, comparetable, sctype, smart=True, tablecols=16):
 
 	broken = [(i,x,y) for i,(x,y) in enumerate(mapping) if x != y]
 	if not broken:
-		log_both('!!! Hooray, %s shellcode unmodified !!!' % sctype, focus=1, highlight=1)
+		log('!!! Hooray, %s shellcode unmodified !!!' % sctype, focus=1, highlight=1)
 		add_to_table('Unmodified')
 	else:
 		log("Only %d original bytes of '%s' code found." % (len(src) - len(broken), sctype))
@@ -7879,6 +7902,7 @@ def main(args):
 		def procCompare(args):
 			startpos = 0
 			filename = ""
+			skipmodules = False
 			if "f" in args:
 				filename = args["f"].replace('"',"").replace("'","")
 				#see if we can read the file
@@ -7894,7 +7918,9 @@ def main(args):
 					return
 				else:
 					startpos = args["a"]
-			compareFileWithMemory(filename,startpos)
+			if "s" in args:
+				skipmodules = True
+			compareFileWithMemory(filename,startpos,skipmodules)
 			
 			
 # ----- offset: Calculate the offset between two addresses ----- #
@@ -9760,7 +9786,8 @@ Mandatory argument :
     -f <filename> : full path to binary file
 Optional argument :
     -a <address> : the address of the bytes in memory. If you don't specify an address, the script will try to
-                   locate the bytes in memory by looking at the first 8 bytes"""
+                   locate the bytes in memory by looking at the first 8 bytes
+    -s : skip locations that belong to a module"""
 				   
 		offsetUsage = """Calculate the number of bytes between two addresses. You can use 
 registers instead of addresses. 
