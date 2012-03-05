@@ -5495,6 +5495,43 @@ def putValueInReg(reg,value,freetext,suggestions,interestinggadgets,criteria):
 								putchain.append([movesteps[0],movesteps[1],movesteps[2]])
 							gadgetfound = True
 							break
+						elif "pop "+ fromreg in suggestions and "add value to " + fromreg in suggestions:
+							# check each value & see if delta meets pointer criteria
+							#imm.log("move %s into %s" % (fromreg,reg))
+							for addinstr in suggestions["add value to " + fromreg]:
+								if not gadgetfound:
+									theinstr = interestinggadgets[addinstr][3:len(interestinggadgets[addinstr])]
+									#imm.log("%s" % theinstr)
+									instrparts = theinstr.split("#")
+									totalvalue = 0
+									#gadget might contain multiple add/sub instructions
+									for indivinstr in instrparts:
+										instrvalueparts = indivinstr.split(',')
+										if len(instrvalueparts) > 1:									
+											thisval = hexStrToInt(instrvalueparts[1])
+											if instrvalueparts[0].lstrip().startswith("ADD"):
+												totalvalue += thisval
+											if instrvalueparts[0].lstrip().startswith("SUB"):
+												totalvalue -= thisval
+									# subtract totalvalue from target value
+									if totalvalue > 0:
+										deltaval = value - totalvalue
+										if deltaval < 0:
+											deltaval = 0xffffffff + deltaval + 1
+										deltavalhex = toHex(deltaval)
+										if meetsCriteria(MnPointer(deltaval),criteria):
+											#imm.log("   Instruction : %s, Delta : %s, To pop in reg : %s" % (theinstr,toHex(totalvalue),deltavalhex),highlight=1)
+											popptr = getShortestGadget(suggestions["pop "+fromreg])
+											junksize = getJunk(interestinggadgets[popptr])-4
+											putchain.append([popptr,"",junksize])
+											putchain.append([deltaval,"put delta into " + fromreg + " (-> put 0x" + toHex(value) + " into " + reg + ")",0])
+											junksize = getJunk(interestinggadgets[addinstr])
+											putchain.append([addinstr,"",junksize])
+											movptr = getShortestGadget(suggestions["move "+fromreg + " -> " + reg])
+											junksize = getJunk(interestinggadgets[movptr])
+											putchain.append([movptr,"",junksize])
+											gadgetfound = True
+									
 		else:
 			if "pop " + reg in suggestions and "neg "+reg in suggestions and "dec "+reg in suggestions:
 				toinc = 0
