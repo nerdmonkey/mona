@@ -34,8 +34,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.)
  
-$Revision: 156 $
-$Id: mona.py 156 2012-02-23 17:32:05Z corelanc0d3r $ 
+$Revision: 157 $
+$Id: mona.py 157 2012-03-03 07:44:06Z corelanc0d3r $ 
 """
 
 __VERSION__ = '1.3-dev'
@@ -5365,8 +5365,7 @@ def getRopFuncPtr(apiname,modulecriteria,criteria,mode = "iat"):
 	ropfuncptr = 0
 	ropfunctext = "ptr to &" + apiname + "()"
 	
-	if mode == "iat":
-		
+	if mode == "iat":	
 		ropfuncs,ropfuncoffsets = findROPFUNC(modulecriteria,criteria)
 		silent = oldsilent
 		#first look for good one
@@ -5600,7 +5599,7 @@ def putValueInReg(reg,value,freetext,suggestions,interestinggadgets,criteria):
 								break
 							
 		if not gadgetfound and "add value to " + reg in suggestions and "pop " + reg in suggestions:
-			addtypes = ["ADD","ADC","XOR"]
+			addtypes = ["ADD","ADC","XOR", "SUB"]
 			for addtype in addtypes:
 				for ptrs in suggestions["add value to " + reg]:
 					thisinstr = interestinggadgets[ptrs]
@@ -5614,6 +5613,11 @@ def putValueInReg(reg,value,freetext,suggestions,interestinggadgets,criteria):
 								delta = 0xffffffff + delta + 1
 						if addtype == "XOR":
 							delta = hexStrToInt(addinstr[1]) ^ value
+						if addtype == "SUB":
+							addvalue = hexStrToInt(addinstr[1])
+							delta = value + addvalue
+							if delta < 0:
+								delta = 0xffffffff + delta + 1							
 						if meetsCriteria(MnPointer(delta),criteria):
 							popptr = getShortestGadget(suggestions["pop "+reg])
 							junksize = getJunk(interestinggadgets[popptr])-4
@@ -5629,7 +5633,7 @@ def putValueInReg(reg,value,freetext,suggestions,interestinggadgets,criteria):
 				if movetype.startswith("move") and movetype.endswith("-> " + reg):
 					fromreg = movetype.split(" ")[1]		
 					if "add value to " + fromreg in suggestions and "pop " + fromreg in suggestions:
-						addtypes = ["ADD","ADC","XOR"]
+						addtypes = ["ADD","ADC","XOR","SUB"]
 						for addtype in addtypes:
 							for ptrs in suggestions["add value to " + fromreg]:
 								thisinstr = interestinggadgets[ptrs]
@@ -5643,6 +5647,11 @@ def putValueInReg(reg,value,freetext,suggestions,interestinggadgets,criteria):
 											delta = 0xffffffff + delta + 1
 									if addtype == "XOR":
 										delta = hexStrToInt(addinstr[1]) ^ value
+									if addtype == "SUB":
+										addvalue = hexStrToInt(addinstr[1])
+										delta = value + addvalue
+										if delta < 0:
+											delta = 0xffffffff + delta + 1												
 									#imm.log("0x%s : %s, delta : 0x%s" % (toHex(ptrs),thisinstr,toHex(delta)))
 									if meetsCriteria(MnPointer(delta),criteria):
 										popptr = getShortestGadget(suggestions["pop "+fromreg])
@@ -5900,6 +5909,7 @@ def isInterestingGadget(instructions):
 					"MOV E", "CLC", "CLD", "FS:", "FPA"
 					]
 	notinteresting = [ "MOV ESP,EBP", "LEA ESP"	]
+	subregs = ["EAX","ECX","EDX","EBX","EBP","ESI","EDI"]
 	regs = immlib.Registers32BitsOrder
 	individual = instructions.split("#")
 	cnt = 0
@@ -6397,6 +6407,7 @@ def getRegToReg(type,fromreg,toreg,ropchains,moveptr_allowed,moveptr_notallowed)
 		moveptr.append("ADD "+toreg+",")
 		moveptr.append("ADC "+toreg+",")		
 		moveptr.append("XOR "+toreg+",")		
+		moveptr.append("SUB "+toreg+",")	
 		srcval = True
 		resulthash = "add value to " + toreg
 	if type == "INC":
@@ -6410,6 +6421,7 @@ def getRegToReg(type,fromreg,toreg,ropchains,moveptr_allowed,moveptr_notallowed)
 		resulthash = type +" "+fromreg+" -> "+toreg
 	resulthash = resulthash.lower()
 	for tocheck in moveptr:
+		origtocheck = tocheck
 		for gadget in ropchains:
 			gadgetinstructions = ropchains[gadget].strip()
 			if gadgetinstructions.find(tocheck) == 2:
@@ -6469,6 +6481,7 @@ def getRegToReg(type,fromreg,toreg,ropchains,moveptr_allowed,moveptr_notallowed)
 								results[resulthash] = toadd
 							else:
 								results[resulthash] = mergeOpcodes(results[resulthash],toadd)
+			tocheck = origtocheck
 	return results
 	
 def suggestedGadgetCheck(instructions,allowed,notallowed):
