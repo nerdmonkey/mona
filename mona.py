@@ -34,8 +34,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.)
  
-$Revision: 160 $
-$Id: mona.py 160 2012-03-05 16:00:28Z corelanc0d3r $ 
+$Revision: 162 $
+$Id: mona.py 162 2012-03-05 20:30:30Z corelanc0d3r $ 
 """
 
 __VERSION__ = '1.3-dev'
@@ -5976,10 +5976,10 @@ def isInterestingGadget(instructions):
 						if len(thisinstrparts) > 1:
 							if thisinstrparts[1] in regs:
 								foundinstruction = True
-					# other exceptions
-					if instructions.strip().startswith("# XCHG") and (thisinstr.find("ADD DWORD") > -1 or thisinstr.find("ADD BYTE") > -1):
+					# other exceptions - don't combine ADD BYTE or ADD DWORD with XCHG EAX,ESI - EAX may not be writeable
+					#if instructions.strip().startswith("# XCHG") and (thisinstr.find("ADD DWORD") > -1 or thisinstr.find("ADD BYTE") > -1) and not instructions.strip().startswith("# XCHG EAX,ESI") :
 						# allow - tricky case, but sometimes needed
-						foundinstruction = True
+					#	foundinstruction = True
 				allgood = foundinstruction
 			else:
 				allgood = False
